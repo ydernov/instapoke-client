@@ -1,4 +1,3 @@
-// eslint.config.js
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 import pluginReact from "eslint-plugin-react";
@@ -7,21 +6,12 @@ import pluginJsxA11y from "eslint-plugin-jsx-a11y";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 
 export default tseslint.config(
-  // 1. ESLint's recommended base rules for general JavaScript
   eslint.configs.recommended,
-
-  // 2. TypeScript ESLint recommended rules (type-aware)
-  //    This includes the TypeScript parser configuration and essential TS rules.
-  //    Using spread operator as it returns an array of configs.
-  ...tseslint.configs.recommendedTypeChecked,
-
-  // 3. Main configuration block for React, TypeScript, and JSX files
+  tseslint.configs.recommendedTypeChecked,
   {
-    files: ["**/*.{js,jsx,ts,tsx}"], // Apply these rules to relevant files
+    files: ["**/*.{js,jsx,ts,tsx}"],
     plugins: {
-      react: pluginReact, // Register the React plugin
-      // 'react-hooks' and 'jsx-a11y' plugins are registered here,
-      // but their recommended rule sets are applied in separate config objects below.
+      react: pluginReact,
       "react-hooks": pluginReactHooks,
       "jsx-a11y": pluginJsxA11y,
     },
@@ -31,7 +21,7 @@ export default tseslint.config(
         ecmaVersion: "latest",
         sourceType: "module",
         ecmaFeatures: {
-          jsx: true, // Enable JSX parsing
+          jsx: true,
         },
         // Crucial for type-aware linting
         project: ["./tsconfig.json", "./tsconfig.node.json"], // Paths to your tsconfig.json
@@ -49,12 +39,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      // --- General ESLint Rules ---
-      // Formatting rules like 'indent', 'linebreak-style', 'quotes', 'semi' are REMOVED.
-      // Prettier handles these, and `eslint-plugin-prettier` will report differences.
-      // `eslint-config-prettier` (included in `eslintPluginPrettierRecommended`) disables ESLint's versions.
-      "no-console": ["warn", { allow: ["warn", "error"] }], // Allow console.warn/error, warn on others
-
+      "no-console": ["warn", { allow: ["warn", "error"] }],
       // --- TypeScript ESLint Rule Overrides ---
       // Disable core ESLint rules that are better handled by TypeScript ESLint
       "no-unused-vars": "off",
@@ -82,6 +67,8 @@ export default tseslint.config(
         "error",
         { props: "never", children: "never" }, // Enforce no unnecessary curly braces in JSX
       ],
+      "react-hooks/rules-of-hooks": "error", // Checks rules of Hooks
+      "react-hooks/exhaustive-deps": "warn", // Checks effect dependencies
     },
   },
 
