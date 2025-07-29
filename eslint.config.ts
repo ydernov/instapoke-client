@@ -4,6 +4,7 @@ import pluginReact from "eslint-plugin-react";
 import pluginReactHooks from "eslint-plugin-react-hooks";
 import pluginJsxA11y from "eslint-plugin-jsx-a11y";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import pluginQuery from "@tanstack/eslint-plugin-query";
 
 export default tseslint.config(
   eslint.configs.recommended,
@@ -14,6 +15,7 @@ export default tseslint.config(
       react: pluginReact,
       "react-hooks": pluginReactHooks,
       "jsx-a11y": pluginJsxA11y,
+      "@tanstack/query": pluginQuery,
     },
     languageOptions: {
       parser: tseslint.parser, // Use TypeScript parser for all applicable files
@@ -69,6 +71,8 @@ export default tseslint.config(
       ],
       "react-hooks/rules-of-hooks": "error", // Checks rules of Hooks
       "react-hooks/exhaustive-deps": "warn", // Checks effect dependencies
+      ...pluginJsxA11y.flatConfigs.recommended.rules,
+      ...pluginQuery.configs.recommended.rules,
     },
   },
 
