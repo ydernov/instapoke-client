@@ -6,12 +6,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FC,
 } from "react";
 import { FeedItemHOC } from "./feed-item/feed-item-hoc";
 import { useAtomValue } from "jotai";
 import { feedCounterAtom } from "@/components/control-panel";
+import { useVirtualization } from "@/hooks/useVirtualization";
 
 type FeedListProps = {
   offset: number;
@@ -46,7 +48,6 @@ const FeedList: FC<FeedListProps> = ({
 
   const {
     data: pokemonFeed,
-
     isFetchingPreviousPage,
     hasPreviousPage,
     fetchPreviousPage,
@@ -66,12 +67,21 @@ const FeedList: FC<FeedListProps> = ({
 
     initialPageParam: { offset, limit },
     getPreviousPageParam: (_firstPage, _pages, firstPageParam) => {
+      if (firstPageParam.offset === 0) {
+        return null;
+      }
       const prevOffset = firstPageParam.offset - firstPageParam.limit;
-      if (prevOffset < 0) return null;
-      return {
-        offset: prevOffset,
-        limit,
-      };
+      if (prevOffset > 0) {
+        return {
+          offset: prevOffset,
+          limit,
+        };
+      } else {
+        return {
+          offset: 0,
+          limit: limit + prevOffset,
+        };
+      }
     },
     getNextPageParam: (_lastPage, _pages, lastPageParam) => {
       if (!_lastPage.hasMore) return null;
@@ -141,24 +151,50 @@ const FeedList: FC<FeedListProps> = ({
     return pokemonFeed?.pages.flatMap((page) => page.pokemon);
   }, [pokemonFeed]);
 
+  const listRef = useRef(null);
+  const { measureElement, records, listHeight, scrollToIndex } =
+    useVirtualization({
+      totalElementsCount: rows?.length || 0,
+      scrollContainer: document,
+      listContainerElement: listRef.current,
+      estimatedSize: 525,
+      overscan: 5,
+      gap: 24,
+    });
+
   return (
     <div className="grid auto-rows-max gap-6 h-full scroll-auto">
       <div className="prevLoadTrigger h-px" ref={prevLoadTrigger} />
       {isFetchingPreviousPage ? <LoadingIndicator /> : null}
-      <div className="flex flex-col gap-6">
+      <div
+        className="flex flex-col gap-6 relative"
+        ref={listRef}
+        style={{ height: listHeight }}
+      >
         {rows && rows.length > 0 ? (
-          rows.map((pokemon) => {
+          records.map((record) => {
+            const pokemon = rows[record.index];
+
             return (
-              <FeedItemHOC
+              <div
+                ref={measureElement}
+                data-index={record.index}
                 key={pokemon.id}
-                id={pokemon.id}
-                name={pokemon.name}
-                imageURL={pokemon.imageURL}
-                smallImageURL={pokemon.smallImageURL}
-                types={pokemon.types}
-                abilities={pokemon.abilities}
-                moves={pokemon.moves}
-              />
+                className="absolute top-0 left-0 translate-y-(--ty)"
+                style={{
+                  "--ty": `${record.offset}px`,
+                }}
+              >
+                <FeedItemHOC
+                  id={pokemon.id}
+                  name={pokemon.name}
+                  imageURL={pokemon.imageURL}
+                  smallImageURL={pokemon.smallImageURL}
+                  types={pokemon.types}
+                  abilities={pokemon.abilities}
+                  moves={pokemon.moves}
+                />
+              </div>
             );
           })
         ) : (

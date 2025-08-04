@@ -26,15 +26,15 @@ const FeedItem: React.FC<Pokemon> = ({
   useEffect(() => {
     if (useDalayedRendering) {
       if ("requestIdleCallback" in window) {
-        const id = requestIdleCallback(() => {
+        const _id = requestIdleCallback(() => {
           setShowLargeArray(true);
         });
-        return () => cancelIdleCallback(id);
+        return () => cancelIdleCallback(_id);
       } else {
-        const id = setTimeout(() => {
+        const _id = setTimeout(() => {
           setShowLargeArray(true);
         }, 400);
-        return () => clearTimeout(id);
+        return () => clearTimeout(_id);
       }
     }
   }, [useDalayedRendering]);
