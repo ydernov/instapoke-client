@@ -1,11 +1,19 @@
-import { showFpsCounterAtom } from "@/components/control-panel";
+import {
+  listVirtualizationAtom,
+  showFpsCounterAtom,
+} from "@/components/control-panel";
 import ControlPanel from "@/components/control-panel.tsx";
 import FPSCounter from "@/components/fps-counter";
+import { cn } from "@/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtomValue } from "jotai";
 import { useRef } from "react";
 import FeedFilters from "./-components/feed-filters";
 import FeedList from "./-components/feed-list";
+import FeedListCustomVirtual from "./-components/feed-list-custom-virtual";
+import FeedListTanstackVirtual from "./-components/feed-list-tanstack-virtual";
+import { ErrorBoundary } from "react-error-boundary";
+import { ErrorBoundaryFallback } from "@/components/error-boundary-fallback";
 
 export type FeedSearchParams = {
   offset?: number;
@@ -32,10 +40,14 @@ function Feed() {
   const { offset = 0, limit = 10, types, moves, abilities } = Route.useSearch();
   const showFpsCounter = useAtomValue(showFpsCounterAtom);
   const scrollContainer = useRef<HTMLDivElement>(null);
+  const virtualization = useAtomValue(listVirtualizationAtom);
 
   return (
     <div
-      className="container mx-auto p-4 md:p-6 lg:p-8 h-screen"
+      className={cn(
+        "container mx-auto p-4 md:p-6 lg:p-8 h-screen",
+        virtualization === "tanstack-virtual" ? "overflow-auto" : ""
+      )}
       ref={scrollContainer}
     >
       <ControlPanel />
@@ -51,14 +63,50 @@ function Feed() {
         </aside>
 
         <main className="md:w-3/4 flex-grow">
-          <FeedList
-            offset={offset}
-            limit={limit}
-            types={types}
-            abilities={abilities}
-            moves={moves}
-            scrollContainer={scrollContainer.current}
-          />
+          <ErrorBoundary
+            FallbackComponent={ErrorBoundaryFallback}
+            resetKeys={[virtualization]}
+          >
+            {(() => {
+              switch (virtualization) {
+                case "tanstack-virtual":
+                  return (
+                    <FeedListTanstackVirtual
+                      offset={offset}
+                      limit={limit}
+                      types={types}
+                      abilities={abilities}
+                      moves={moves}
+                      scrollContainer={scrollContainer.current}
+                    />
+                  );
+
+                case "custom":
+                  return (
+                    <FeedListCustomVirtual
+                      offset={offset}
+                      limit={limit}
+                      types={types}
+                      abilities={abilities}
+                      moves={moves}
+                      scrollContainer={scrollContainer.current}
+                    />
+                  );
+
+                default:
+                  return (
+                    <FeedList
+                      offset={offset}
+                      limit={limit}
+                      types={types}
+                      abilities={abilities}
+                      moves={moves}
+                      scrollContainer={scrollContainer.current}
+                    />
+                  );
+              }
+            })()}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

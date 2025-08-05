@@ -8,7 +8,9 @@ export const controlPanelIsOpenAtom = atomWithStorage<boolean>(
   false
 );
 export const showFpsCounterAtom = atomWithStorage("showFpsCounter", false);
-
+export const listVirtualizationAtom = atomWithStorage<
+  "none" | "custom" | "tanstack-virtual"
+>("listVirtualization", "none");
 export const cssOptimizationAtom = atomWithStorage<
   "none" | "content-visibility"
 >("cssOptimization", "none");
@@ -40,6 +42,10 @@ const ControlPanel: React.FC = () => {
   const [feedItemMovesDelayedRendering, setFeedItemMovesDelayedRendering] =
     useAtom(feedItemMovesDelayedRenderingAtom);
 
+  const [listVirtualization, setListVirtualization] = useAtom(
+    listVirtualizationAtom
+  );
+
   const [feedCounter, setFeedCounter] = useAtom(feedCounterAtom);
 
   const [cssOptimization, setCssOptimization] = useAtom(cssOptimizationAtom);
@@ -51,6 +57,7 @@ const ControlPanel: React.FC = () => {
     feedItemTagsMemoization: setFeedItemTagsMemoization,
     feedItemMovesDelayedRendering: setFeedItemMovesDelayedRendering,
     cssOptimization: setCssOptimization,
+    listVirtualization: setListVirtualization,
     feedCounter: setFeedCounter,
   };
 
@@ -165,7 +172,54 @@ const ControlPanel: React.FC = () => {
             <span className="block text-sm text-gray-400 mb-1">
               Virtualization:
             </span>
-            Cooming soon
+            <label className="inline-flex items-center mr-4">
+              <input
+                type="radio"
+                name="listVirtualization"
+                value="none"
+                checked={listVirtualization === "none"}
+                onChange={(e) =>
+                  handleSettingChange(
+                    "listVirtualization",
+                    e.target.value as "none" | "custom" | "tanstack-virtual"
+                  )
+                }
+                className="form-radio h-4 w-4 text-blue-600"
+              />
+              <span className="ml-1 text-gray-300">None</span>
+            </label>
+            <label className="inline-flex items-center mr-4">
+              <input
+                type="radio"
+                name="listVirtualization"
+                value="custom"
+                checked={listVirtualization === "custom"}
+                onChange={(e) =>
+                  handleSettingChange(
+                    "listVirtualization",
+                    e.target.value as "none" | "custom" | "tanstack-virtual"
+                  )
+                }
+                className="form-radio h-4 w-4 text-blue-600"
+              />
+              <span className="ml-1 text-gray-300">Custom</span>
+            </label>
+            <label className="inline-flex items-center">
+              <input
+                type="radio"
+                name="listVirtualization"
+                value="tanstack-virtual"
+                checked={listVirtualization === "tanstack-virtual"}
+                onChange={(e) =>
+                  handleSettingChange(
+                    "listVirtualization",
+                    e.target.value as "none" | "custom" | "tanstack-virtual"
+                  )
+                }
+                className="form-radio h-4 w-4 text-blue-600"
+              />
+              <span className="ml-1 text-gray-300">TanStack Virtual</span>
+            </label>
           </div>
           <div className="mb-2">
             <label className="flex items-center cursor-pointer">
