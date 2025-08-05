@@ -36,11 +36,19 @@ export const Route = createFileRoute("/feed/")({
   },
 });
 
+const FEED_LIST_MAP = {
+  "tanstack-virtual": FeedListTanstackVirtual,
+  custom: FeedListCustomVirtual,
+  none: FeedList,
+};
+
 function Feed() {
   const { offset = 0, limit = 10, types, moves, abilities } = Route.useSearch();
   const showFpsCounter = useAtomValue(showFpsCounterAtom);
   const scrollContainer = useRef<HTMLDivElement>(null);
   const virtualization = useAtomValue(listVirtualizationAtom);
+
+  const SelectedFeedList = FEED_LIST_MAP[virtualization];
 
   return (
     <div
@@ -67,45 +75,14 @@ function Feed() {
             FallbackComponent={ErrorBoundaryFallback}
             resetKeys={[virtualization]}
           >
-            {(() => {
-              switch (virtualization) {
-                case "tanstack-virtual":
-                  return (
-                    <FeedListTanstackVirtual
-                      offset={offset}
-                      limit={limit}
-                      types={types}
-                      abilities={abilities}
-                      moves={moves}
-                      scrollContainer={scrollContainer.current}
-                    />
-                  );
-
-                case "custom":
-                  return (
-                    <FeedListCustomVirtual
-                      offset={offset}
-                      limit={limit}
-                      types={types}
-                      abilities={abilities}
-                      moves={moves}
-                      scrollContainer={scrollContainer.current}
-                    />
-                  );
-
-                default:
-                  return (
-                    <FeedList
-                      offset={offset}
-                      limit={limit}
-                      types={types}
-                      abilities={abilities}
-                      moves={moves}
-                      scrollContainer={scrollContainer.current}
-                    />
-                  );
-              }
-            })()}
+            <SelectedFeedList
+              offset={offset}
+              limit={limit}
+              types={types}
+              abilities={abilities}
+              moves={moves}
+              scrollContainer={scrollContainer.current}
+            />
           </ErrorBoundary>
         </main>
       </div>
