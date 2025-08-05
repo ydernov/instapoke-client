@@ -1,17 +1,19 @@
 import { getPokemon } from "@/api";
-import { feedCounterAtom } from "@/components/control-panel";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useAtomValue } from "jotai";
 import {
   memo,
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FC,
 } from "react";
 import { FeedItemHOC } from "./feed-item/feed-item-hoc";
+import { useAtomValue } from "jotai";
+import { feedCounterAtom } from "@/components/control-panel";
+import { useVirtualization } from "@/hooks/useVirtualization";
 
 type FeedListProps = {
   offset: number;
@@ -30,7 +32,7 @@ const FeedList: FC<FeedListProps> = ({
   moves,
 }) => {
   const feedCounter = useAtomValue(feedCounterAtom);
-  const [, setTimer] = useState(0);
+  const [timer, setTimer] = useState(0);
 
   useEffect(() => {
     if (feedCounter) {
@@ -149,31 +151,62 @@ const FeedList: FC<FeedListProps> = ({
     return pokemonFeed?.pages.flatMap((page) => page.pokemon);
   }, [pokemonFeed]);
 
+  const listRef = useRef(null);
+  const { measureElement, records, listHeight, scrollToIndex } =
+    useVirtualization({
+      totalElementsCount: rows?.length || 0,
+      scrollContainer: document,
+      listContainerElement: listRef.current,
+      estimatedSize: 525,
+      overscan: 5,
+      gap: 24,
+    });
+
+  useEffect(() => {
+    scrollToIndex(offset);
+  }, [scrollToIndex]);
+
   return (
     <div className="grid auto-rows-max gap-6 h-full scroll-auto">
       <div className="prevLoadTrigger h-px" ref={prevLoadTrigger} />
       {isFetchingPreviousPage ? <LoadingIndicator /> : null}
+      <div
+        className="relative h-(--list-height)"
+        ref={listRef}
+        style={{ height: listHeight }}
+      >
+        {rows && rows.length > 0 ? (
+          records.map((record) => {
+            const pokemon = rows[record.index];
 
-      {rows && rows.length > 0 ? (
-        rows.map((pokemon) => {
-          return (
-            <FeedItemHOC
-              key={pokemon.id}
-              id={pokemon.id}
-              name={pokemon.name}
-              imageURL={pokemon.imageURL}
-              smallImageURL={pokemon.smallImageURL}
-              types={pokemon.types}
-              abilities={pokemon.abilities}
-              moves={pokemon.moves}
-            />
-          );
-        })
-      ) : (
-        <div className="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
-          No feed items to display. Try adjusting your filters!
-        </div>
-      )}
+            return (
+              <div
+                ref={measureElement}
+                data-index={record.index}
+                key={pokemon.id}
+                className="absolute top-0 left-0 right-0"
+                style={{
+                  translate: `0 ${record.offset}px`,
+                }}
+              >
+                <FeedItemHOC
+                  id={pokemon.id}
+                  name={pokemon.name}
+                  imageURL={pokemon.imageURL}
+                  smallImageURL={pokemon.smallImageURL}
+                  types={pokemon.types}
+                  abilities={pokemon.abilities}
+                  moves={pokemon.moves}
+                />
+              </div>
+            );
+          })
+        ) : (
+          <div className="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
+            No feed items to display. Try adjusting your filters!
+          </div>
+        )}
+      </div>
 
       {isFetchingNextPage ? <LoadingIndicator /> : null}
       <div className="nextLoadTrigger h-px" ref={nextLoadTrigger} />
