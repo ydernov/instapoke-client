@@ -41,8 +41,6 @@ const FeedList: FC<FeedListProps> = ({
   const {
     data: pokemonFeed,
     isFetchingPreviousPage,
-    hasPreviousPage,
-    fetchPreviousPage,
     isFetchingNextPage,
     hasNextPage,
     fetchNextPage,
@@ -91,25 +89,18 @@ const FeedList: FC<FeedListProps> = ({
   const listRef = useRef(null);
 
   const rowVirtualizer = useVirtualizer({
-    count: rows.length + (hasNextPage ? 1 : 0) + (hasPreviousPage ? 1 : 0),
+    count: rows.length + (hasNextPage ? 1 : 0),
     getScrollElement: () => scrollContainer,
     estimateSize: () => 575,
     overscan: 5,
     gap: 24,
     getItemKey: (index) => {
-      const isLoaderRowTop = hasPreviousPage && index === 0;
       const isLoaderRowBottom = hasNextPage && index > rows.length - 1;
 
-      if (isLoaderRowTop) {
-        return "prev_loader";
-      }
       if (isLoaderRowBottom) {
         return "next_loader";
       }
 
-      if (hasPreviousPage) {
-        return rows[index - 1].id;
-      }
       return rows[index].id;
     },
   });
@@ -128,18 +119,12 @@ const FeedList: FC<FeedListProps> = ({
     ) {
       void fetchNextPage();
     }
-
-    if (firstItem.index === 0 && hasPreviousPage && !isFetchingPreviousPage) {
-      void fetchPreviousPage();
-    }
   }, [
     rowVirtualizer.getVirtualItems(),
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    hasPreviousPage,
     isFetchingPreviousPage,
-    fetchPreviousPage,
     rows.length,
   ]);
 
@@ -152,19 +137,10 @@ const FeedList: FC<FeedListProps> = ({
         style={{ height: rowVirtualizer.getTotalSize() }}
       >
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-          const isLoaderRowTop = hasPreviousPage && virtualRow.index === 0;
           const isLoaderRowBottom =
-            hasNextPage &&
-            virtualRow.index === rows.length + (hasPreviousPage ? 1 : 0);
+            hasNextPage && virtualRow.index > rows.length - 1;
 
-          let itemIndex;
-          if (hasPreviousPage) {
-            itemIndex = virtualRow.index - 1;
-          } else {
-            itemIndex = virtualRow.index;
-          }
-
-          const pokemon = rows[itemIndex];
+          const pokemon = rows[virtualRow.index];
 
           return (
             <div
@@ -176,7 +152,7 @@ const FeedList: FC<FeedListProps> = ({
               }}
               ref={rowVirtualizer.measureElement}
             >
-              {isLoaderRowTop || isLoaderRowBottom ? (
+              {isLoaderRowBottom ? (
                 <LoadingIndicator />
               ) : pokemon ? (
                 <FeedItemHOC
