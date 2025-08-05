@@ -63,7 +63,8 @@ type ScheduledCallbacksStages = keyof typeof STATUS_MASKS | "NOT_READY";
 
 type ScheduledCallbacksSpecialKays =
   | "UPDATE_LIST_OFFSET"
-  | "UPDATE_LIST_HEIGHT";
+  | "UPDATE_LIST_HEIGHT"
+  | "UPDATE_VISIBLE_RECORDS";
 type ScheduledCallbacksType = Map<
   ScheduledCallbacksStages,
   Map<symbol | ScheduledCallbacksSpecialKays, () => void>
@@ -343,6 +344,14 @@ export class Virtualizer {
 
       case (this.readyState & STATUS_MASKS.SETUP_COMPLETE) ===
         STATUS_MASKS.SETUP_COMPLETE:
+        this.scheduleCallback(
+          "SETUP_COMPLETE",
+          () => {
+            this.scrollHandler();
+          },
+          "UPDATE_VISIBLE_RECORDS"
+        );
+
         this.scheduleCallback("SETUP_COMPLETE", () => {
           this.toInteractiveRAFId = requestAnimationFrame(() => {
             this.updateInstanceState("IS_INTERACTIVE", "ready");
@@ -864,20 +873,13 @@ export class Virtualizer {
   };
 
   scrollToIndex = (index: number) => {
-    // debugger;
     const callback = () => {
       requestAnimationFrame(() => {
-        // debugger;
-
         const callChain = "scrollToIndex -> callback";
         const element = this.getOffsetRecordByIndex(index, callChain);
         const scrollTo = this.listElementOffsetTop + element.offset;
-        console.log(callChain, "scrollTo", scrollTo);
-        console.log(
-          "this.listContainerElement?.offsetHeight",
-          this.listContainerElement?.offsetHeight
-        );
-        this.getScrollContainerElement(callChain).scroll({ top: scrollTo });
+
+        this.getScrollContainerElement(callChain).scrollTo({ top: scrollTo });
       });
     };
     if (

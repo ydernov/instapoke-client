@@ -162,15 +162,15 @@ const FeedList: FC<FeedListProps> = ({
       gap: 24,
     });
 
+  useEffect(() => {
+    scrollToIndex(offset);
+  }, [scrollToIndex]);
+
   return (
     <div className="grid auto-rows-max gap-6 h-full scroll-auto">
       <div className="prevLoadTrigger h-px" ref={prevLoadTrigger} />
       {isFetchingPreviousPage ? <LoadingIndicator /> : null}
-      <div
-        className="flex flex-col gap-6 relative"
-        ref={listRef}
-        style={{ height: listHeight }}
-      >
+      <div className="relative" ref={listRef} style={{ height: listHeight }}>
         {rows && rows.length > 0 ? (
           records.map((record) => {
             const pokemon = rows[record.index];
@@ -180,7 +180,7 @@ const FeedList: FC<FeedListProps> = ({
                 ref={measureElement}
                 data-index={record.index}
                 key={pokemon.id}
-                className="absolute top-0 left-0 translate-y-(--ty)"
+                className="absolute top-0 left-0 translate-y-(--ty) right-0"
                 style={{
                   "--ty": `${record.offset}px`,
                 }}
