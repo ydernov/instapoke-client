@@ -1,6 +1,9 @@
 import { getPokemon } from "@/api";
+import { feedCounterAtom } from "@/components/control-panel";
 import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
+import { useVirtualization } from "@/hooks/useVirtualization";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import {
   memo,
   useCallback,
@@ -11,9 +14,7 @@ import {
   type FC,
 } from "react";
 import { FeedItemHOC } from "./feed-item/feed-item-hoc";
-import { useAtomValue } from "jotai";
-import { feedCounterAtom } from "@/components/control-panel";
-import { useVirtualization } from "@/hooks/useVirtualization";
+import { LoadingIndicator } from "./loading-indicator";
 
 type FeedListProps = {
   offset: number;
@@ -32,7 +33,7 @@ const FeedList: FC<FeedListProps> = ({
   moves,
 }) => {
   const feedCounter = useAtomValue(feedCounterAtom);
-  const [timer, setTimer] = useState(0);
+  const [, setTimer] = useState(0);
 
   useEffect(() => {
     if (feedCounter) {
@@ -147,20 +148,54 @@ const FeedList: FC<FeedListProps> = ({
     [handleLoadNext, observe, unobserve]
   );
 
-  const rows = useMemo(() => {
+  const pokemonArray = useMemo(() => {
     return pokemonFeed?.pages.flatMap((page) => page.pokemon);
   }, [pokemonFeed]);
 
   const listRef = useRef(null);
   const { measureElement, records, listHeight, scrollToIndex } =
     useVirtualization({
-      totalElementsCount: rows?.length || 0,
+      totalElementsCount: pokemonArray?.length || 0,
       scrollContainer: document,
       listContainerElement: listRef.current,
       estimatedSize: 525,
       overscan: 5,
       gap: 24,
     });
+
+  useEffect(() => {
+    if (records.length && pokemonArray?.length) {
+      const firstItem = records[0];
+      const lasstItem = records[records.length - 1];
+
+      if (
+        firstItem.index === 0 &&
+        hasPreviousPage &&
+        !isFetchingPreviousPage &&
+        !isFetchingNextPage
+      ) {
+        void fetchPreviousPage();
+      }
+
+      if (
+        lasstItem.index >= pokemonArray?.length - 1 &&
+        hasNextPage &&
+        !isFetchingNextPage &&
+        !isFetchingPreviousPage
+      ) {
+        void fetchNextPage();
+      }
+    }
+  }, [
+    fetchNextPage,
+    fetchPreviousPage,
+    hasNextPage,
+    hasPreviousPage,
+    isFetchingNextPage,
+    isFetchingPreviousPage,
+    pokemonArray?.length,
+    records,
+  ]);
 
   useEffect(() => {
     scrollToIndex(offset);
@@ -175,9 +210,9 @@ const FeedList: FC<FeedListProps> = ({
         ref={listRef}
         style={{ height: listHeight }}
       >
-        {rows && rows.length > 0 ? (
+        {pokemonArray && pokemonArray.length > 0 ? (
           records.map((record) => {
-            const pokemon = rows[record.index];
+            const pokemon = pokemonArray[record.index];
 
             return (
               <div
@@ -210,39 +245,6 @@ const FeedList: FC<FeedListProps> = ({
 
       {isFetchingNextPage ? <LoadingIndicator /> : null}
       <div className="nextLoadTrigger h-px" ref={nextLoadTrigger} />
-    </div>
-  );
-};
-
-const LoadingIndicator: React.FC = () => {
-  return (
-    <div className="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
-      <div className="flex items-center justify-center mb-4">
-        <svg
-          className="animate-spin h-8 w-8 text-blue-500"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-      </div>
-      <p className="text-lg font-medium">Loading Pokemon data...</p>
-      <p className="text-sm mt-2">
-        Please wait while we fetch the latest creatures!
-      </p>
     </div>
   );
 };

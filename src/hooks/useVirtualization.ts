@@ -43,7 +43,6 @@ export const useVirtualization = ({
   }
 
   useEffect(() => {
-    console.log("%cuseEffect", "color: red;");
     virtualizer.current?.updateOptions({
       estimatedSize,
       gap,
@@ -54,7 +53,6 @@ export const useVirtualization = ({
   }, [estimatedSize, gap, scrollContainer, overscan]);
 
   useEffect(() => {
-    // console.log("%cuseEffect", "color: orange;", totalCount);
     virtualizer.current?.updateOptions({
       totalElementsCount,
     });
