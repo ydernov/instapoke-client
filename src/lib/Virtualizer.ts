@@ -86,6 +86,7 @@ export class Virtualizer {
   // END OF NON ESSENTIAL PROPERTIES
   //
   // INTERNAL STRUCTURES
+  private isDestroyed = false;
   private readyState: number = STATUS_FLAGS.NONE;
   private scrollController: AbortController | null = null;
   private offsets: {
@@ -836,6 +837,41 @@ export class Virtualizer {
 
   // USER-FACING METHODS
 
+  destroy = () => {
+    if (this.isDestroyed) {
+      throw new Error(
+        "The instance of Virtualizer is already destroyed, the 'destroy' method is disallowed"
+      );
+    }
+
+    this.updateOptions({
+      overscan: 0,
+      estimatedSize: 0,
+      gap: 0,
+      totalElementsCount: 0,
+      scrollContainer: null,
+      listContainerElement: null,
+      listHeightCallback: null,
+      recordsCallback: null,
+    });
+
+    this.offsets.records?.clear();
+    this.offsets.records = null;
+    this.heights.sum = 0;
+    this.heights.records?.clear();
+    this.heights.records = null;
+    this.currentVisibleIndexRange?.clear();
+    this.currentVisibleIndexRange = null;
+
+    this.scheduledCallbacks?.forEach((sm) => {
+      sm.clear();
+    });
+    this.scheduledCallbacks?.clear();
+    this.scheduledCallbacks = null;
+
+    this.isDestroyed = true;
+  };
+
   updateOptions = ({
     scrollContainer,
     listContainerElement,
@@ -846,6 +882,11 @@ export class Virtualizer {
     recordsCallback,
     listHeightCallback,
   }: Partial<Options>) => {
+    if (this.isDestroyed) {
+      throw new Error(
+        "The instance of Virtualizer is already destroyed, the 'updateOptions' method is disallowed"
+      );
+    }
     if (scrollContainer !== undefined) {
       this.updateScrollContainer(scrollContainer);
     }
@@ -873,12 +914,20 @@ export class Virtualizer {
   };
 
   scrollToIndex = (index: number) => {
+    if (this.isDestroyed) {
+      throw new Error(
+        "The instance of Virtualizer is already destroyed, the 'scrollToIndex' method is disallowed"
+      );
+    }
+
     const callback = () => {
       requestAnimationFrame(() => {
         const callChain = "scrollToIndex -> callback";
+
         const element = this.getOffsetRecordByIndex(index, callChain);
         const scrollTo = this.listElementOffsetTop + element.offset;
 
+        console.log(callChain, scrollTo, index);
         this.getScrollContainerElement(callChain).scrollTo({ top: scrollTo });
       });
     };
@@ -893,6 +942,12 @@ export class Virtualizer {
   };
 
   measureElement = (element: HTMLElement | null) => {
+    if (this.isDestroyed) {
+      throw new Error(
+        "The instance of Virtualizer is already destroyed, the 'measureElement' method is disallowed"
+      );
+    }
+
     if (element === null) return;
     const elemKey = Number(element.getAttribute("data-index"));
     if (elemKey === undefined || isNaN(elemKey) || elemKey < 0) {

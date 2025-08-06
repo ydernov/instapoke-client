@@ -3,7 +3,7 @@ import {
   Virtualizer,
   type OffsetRecord,
   type Options,
-} from "../lib/Virtualizer";
+} from "@/lib/Virtualizer";
 
 type HookOptions = Pick<
   Options,
@@ -24,9 +24,6 @@ export const useVirtualization = ({
   gap,
 }: HookOptions) => {
   const virtualizer = useRef<Virtualizer>(null);
-  if (!virtualizer.current) {
-    virtualizer.current = new Virtualizer();
-  }
   const [listHeight, setListHeight] = useState(0);
   const [records, setRecords] = useState<OffsetRecord[]>([]);
 
@@ -43,6 +40,21 @@ export const useVirtualization = ({
   }
 
   useEffect(() => {
+    if (!virtualizer.current) {
+      virtualizer.current = new Virtualizer();
+      virtualizer.current?.updateOptions({
+        scrollContainer: scrollContainerProp.current ?? undefined,
+        listContainerElement: listElementProp.current ?? undefined,
+      });
+    }
+
+    return () => {
+      virtualizer.current?.destroy();
+      virtualizer.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     virtualizer.current?.updateOptions({
       estimatedSize,
       gap,
@@ -50,7 +62,7 @@ export const useVirtualization = ({
       listHeightCallback: setListHeight,
       recordsCallback: setRecords,
     });
-  }, [estimatedSize, gap, scrollContainer, overscan]);
+  }, [estimatedSize, gap, overscan]);
 
   useEffect(() => {
     virtualizer.current?.updateOptions({
