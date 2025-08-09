@@ -1,5 +1,5 @@
 import { cn } from "@/utils";
-import { useRef, useState, type JSX } from "react";
+import { useCallback, useRef, useState, type JSX } from "react";
 
 type IntrinsicImgProps = JSX.IntrinsicElements["img"];
 
@@ -30,13 +30,19 @@ export const ImageComponent = ({
   const twClasses =
     "after:content-['IMAGE_NOT_AVAILABLE'] after:flex after:items-center after:justify-center after:absolute after:inset-0 after:bg-gray-200 after:text-gray-700";
   const fallbackErrorImgSrc = `https://placehold.co/${width || "400"}x${height || "400"}/CCCCCC/666666?text=Image+Error`;
+
+  const refCb = useCallback(
+    (elem: HTMLImageElement) => {
+      if (previewSrc) {
+        elem?.style.setProperty("--img-url", `url(${previewSrc})`);
+      }
+    },
+    [previewSrc]
+  );
+
   return (
     <img
-      ref={(ref) => {
-        if (previewSrc) {
-          ref?.style.setProperty("--img-url", `url(${previewSrc})`);
-        }
-      }}
+      ref={refCb}
       className={cn(
         previewSrc ? "[background-image:var(--img-url)]" : "",
         "bg-no-repeat bg-contain object-contain overflow-clip relative",
