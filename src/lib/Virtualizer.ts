@@ -12,8 +12,8 @@ export type HeightRecord = {
 
 type VisibleRecord = {
   index: number;
-  height: number;
   offset: number;
+  height: number;
 };
 
 export type Options = {
@@ -89,20 +89,16 @@ export class Virtualizer {
   private isDestroyed = false;
   private readyState: number = STATUS_FLAGS.NONE;
   private scrollController: AbortController | null = null;
-  private offsets: {
-    changed: boolean;
-    records: Map<number, OffsetRecord> | null;
-  };
-  private heights: {
-    changed: boolean;
-    records: Map<number, HeightRecord> | null;
+  private records: Map<number, VisibleRecord> | null = null;
+  private elementHeightsLedger: {
+    records: Map<number, number> | null;
     sum: number;
+    changed: boolean;
   };
   private currentVisibleIndexRange: Set<number> | null;
   private scheduledCallbacks: ScheduledCallbacksType | null;
-  private batchOnMeasureCallbacksId: NodeJS.Timeout | null = null;
+  private onMeasureCallbackScheduled: boolean = false;
   private toInteractiveRAFId: null | number = null;
-
   // END OF INTERNAL STRUCTURES
   //
   // VARIABLES
@@ -111,17 +107,18 @@ export class Virtualizer {
   private scrollTopWithOffset: number = 0;
   private scrollContainerHeight: number = 0;
   private listHeight: number = 0;
+  private anchorIndex = 0;
+  private prevAnchorIndex = 0;
+  private bottomMostExistingElementIndex = 0;
 
   constructor() {
-    this.offsets = {
-      changed: false,
-      records: new Map(),
-    };
-    this.heights = {
-      changed: false,
-      records: new Map(),
+    this.records = new Map();
+    this.elementHeightsLedger = {
       sum: 0,
+      records: new Map(),
+      changed: false,
     };
+
     this.currentVisibleIndexRange = new Set<number>();
     this.scheduledCallbacks = new Map([
       ["NOT_READY", new Map()],
@@ -167,22 +164,20 @@ export class Virtualizer {
     return this.listContainerElement;
   };
 
-  private getOffsets = (calledFrom: string) => {
-    if (!this.offsets.records) {
-      throw new Error(
-        `${calledFrom} -> getOffsets: offsets.records is not defined`
-      );
+  private getRecords = (calledFrom: string) => {
+    if (!this.records) {
+      throw new Error(`${calledFrom} -> getRecors: records is not defined`);
     }
-    return this.offsets.records;
+    return this.records;
   };
 
-  private getHeights = (calledFrom: string) => {
-    if (!this.heights.records) {
+  private getHeightRecords = (calledFrom: string) => {
+    if (!this.elementHeightsLedger.records) {
       throw new Error(
-        `${calledFrom} -> getHeights: heights.records is not defined`
+        `${calledFrom} -> getHeightRecords: records is not defined`
       );
     }
-    return this.heights.records;
+    return this.elementHeightsLedger.records;
   };
 
   private getCurrentVisibleIndexRange = (calledFrom: string) => {
@@ -221,66 +216,45 @@ export class Virtualizer {
     return this.recordsCallback;
   };
 
-  private getOffsetRecordByIndex = (
-    index: number,
-    calledFrom: string
-  ): OffsetRecord => {
-    const callChain = `${calledFrom} -> getOffsetRecordByIndex`;
-    if (index < 0) {
-      throw new Error(`${callChain}: index below 0 provided - ${index}`);
-    }
-
-    // if (index >= this.totalElementsCount) {
-    //   throw new Error(
-    //     `${callChain}: index above the current range provided - ${index}; current range max - ${this.totalElementsCount - 1}`
-    //   );
-    // }
-    const offsets = this.getOffsets(callChain);
-    const offsetRecord = offsets.get(index);
-    if (offsetRecord) {
-      return offsetRecord;
-    }
-
-    const newOffsetRecord: OffsetRecord = {
-      index,
-      offset: this.getOffsetForIndex(index, callChain),
-    };
-    offsets.set(index, newOffsetRecord);
-    return newOffsetRecord;
-  };
-
-  private getVisibleRecordByIndex = (
+  private getRecordByIndex = (
     index: number,
     calledFrom: string
   ): VisibleRecord => {
     const callChain = `${calledFrom} -> getRecordByIndex`;
-    const offsetRecord = this.getOffsetRecordByIndex(index, callChain);
+    if (index < 0) {
+      throw new Error(`${callChain}: index below 0 provided - ${index}`);
+    }
 
-    const height =
-      this.getHeights(callChain).get(index)?.height ?? this.estimatedSize;
+    const records = this.getRecords(callChain);
+    const record = records.get(index);
+    if (record) {
+      return record;
+    }
 
-    return {
+    const newRecord: VisibleRecord = {
       index,
-      height,
-      offset: offsetRecord.offset,
+      offset: this.getOffsetForIndex(index, callChain),
+      height: this.estimatedSize,
     };
+
+    records.set(index, newRecord);
+    return newRecord;
   };
 
   private getOffsetForIndex = (index: number, calledFrom: string) => {
     if (index === 0) return 0;
 
     const callChain = `${calledFrom} -> getOffsetForIndex`;
-    const offsets = this.getOffsets(callChain);
+    const records = this.getRecords(callChain);
 
-    const currentElementOffset = offsets.get(index);
+    const currentElementOffset = records.get(index);
     if (currentElementOffset) {
       return currentElementOffset.offset;
     }
+    const heights = this.getHeightRecords(callChain);
 
-    const heights = this.getHeights(callChain);
-
-    const prevElementOffset = offsets.get(index - 1)?.offset;
-    const prevElementHeight = heights.get(index - 1)?.height;
+    const prevElementOffset = records.get(index - 1)?.offset;
+    const prevElementHeight = heights.get(index - 1);
 
     if (prevElementOffset !== undefined) {
       return (
@@ -504,7 +478,7 @@ export class Virtualizer {
         this.gap = newVal;
     }
 
-    this.calculateListHeightAndRunCallback();
+    this.updateListHeightAndRunCallback();
   };
 
   // END OF PROP UPDATERS
@@ -555,6 +529,7 @@ export class Virtualizer {
     const hasNewIndexes = this.updateVisibleIndexes();
     if (hasNewIndexes) {
       this.collectRecodsAndRunCallback();
+      this.updateListHeightAndRunCallback();
     }
   };
 
@@ -578,66 +553,131 @@ export class Virtualizer {
   };
   // END OF SCROLL AND HANDLING
 
+  // RECORD UPDATERS
+
+  private updateOffsetForIndex = (index: number) => {
+    if (index === 0) {
+      return;
+    }
+
+    const currentElementRec = this.getRecordByIndex(
+      index,
+      "updateOffsetForIndex"
+    );
+
+    const prevElementRec = this.getRecordByIndex(
+      index - 1,
+      "updateOffsetForIndex"
+    );
+
+    currentElementRec.offset =
+      prevElementRec.offset + prevElementRec.height + this.gap;
+  };
+
+  private updateHeightForIndex = (index: number, height: number) => {
+    const heightsMap = this.getHeightRecords("updateHeightForIndex");
+    const heightRecord = heightsMap.get(index);
+    const elemRec = this.getRecordByIndex(index, "updateHeightForIndex");
+
+    if (elemRec.height !== height) {
+      elemRec.height = height;
+      heightsMap.set(index, height);
+      if (heightRecord === undefined) {
+        this.elementHeightsLedger.sum += height;
+      } else {
+        // subtract previous from the sum before adding the new one
+        this.elementHeightsLedger.sum -= heightRecord;
+        this.elementHeightsLedger.sum += height;
+      }
+
+      return true;
+    }
+    return false;
+  };
+
+  private updateButtomMostElementIndex = (newIndex: number) => {
+    if (newIndex > this.totalElementsCount - 1) {
+      this.bottomMostExistingElementIndex = this.totalElementsCount - 1;
+    } else if (newIndex > this.bottomMostExistingElementIndex) {
+      this.bottomMostExistingElementIndex = newIndex;
+    }
+  };
+
+  private updateVisibleIndexes = () => {
+    const currentVisibleIndexRange = this.getCurrentVisibleIndexRange(
+      "updateVisibleIndexes"
+    );
+
+    const anchorIndex = this.findFirstIndexInViewportByScroll();
+    const firstIndexWithOverscan = Math.max(0, anchorIndex - this.overscan);
+    const lastOnScreenIndex = this.findLastIndexInViewportByScroll(anchorIndex);
+    const lastIndexWithOverscan = lastOnScreenIndex + this.overscan;
+
+    this.updateButtomMostElementIndex(lastIndexWithOverscan);
+
+    this.prevAnchorIndex = this.anchorIndex;
+    this.anchorIndex = anchorIndex;
+
+    this.writeRecordsForIndexRange(
+      firstIndexWithOverscan,
+      lastIndexWithOverscan
+    );
+
+    const newRange = this.createIndexRange(
+      firstIndexWithOverscan,
+      lastIndexWithOverscan
+    );
+
+    const newRangeSet = new Set(newRange);
+
+    if (newRangeSet.difference(currentVisibleIndexRange).size) {
+      currentVisibleIndexRange.clear();
+      this.currentVisibleIndexRange = newRangeSet;
+      newRangeSet.forEach((index) => {
+        this.updateOffsetForIndex(index);
+      });
+
+      return true;
+    } else {
+      // clear on the spot
+      newRangeSet.clear();
+      newRange.length = 0;
+      return false;
+    }
+  };
+
+  // END OF RECORD UPDATERS
+
+  // LIST HEIGHT AND ELEMENTS OPERATIONS
+
+  private getRelevantListHeight = () => {
+    const elem = this.getRecords("getRelevantListHeight").get(
+      this.bottomMostExistingElementIndex
+    );
+
+    if (elem) {
+      return elem.offset + elem.height;
+    }
+
+    return this.calculateListHeight();
+  };
+
   private calculateListHeight = () => {
-    const heightRecords = this.getHeights("calculateListHeight");
-    if (this.heights.changed) {
+    const heightRecords = this.getHeightRecords("calculateListHeight");
+    if (this.elementHeightsLedger.changed) {
       let recalculatedElementsHeight = 0;
       heightRecords.forEach((rec) => {
-        recalculatedElementsHeight += rec.height;
+        recalculatedElementsHeight += rec;
       });
-      this.heights.sum = recalculatedElementsHeight;
-      this.heights.changed = false;
+      this.elementHeightsLedger.sum = recalculatedElementsHeight;
+      this.elementHeightsLedger.changed = false;
     }
 
     const gapHeight = this.gap * Math.max(0, this.totalElementsCount - 1);
     const estimatedElementsHeight =
       (this.totalElementsCount - heightRecords.size) * this.estimatedSize;
 
-    return gapHeight + estimatedElementsHeight + this.heights.sum;
-  };
-
-  private calculateListHeightAndRunCallback = () => {
-    const callback = () => {
-      const newListHeight = this.calculateListHeight();
-      if (newListHeight !== this.listHeight) {
-        this.listHeight = newListHeight;
-        this.getListHeightCallback(
-          "calculateListHeightAndRunCallback -> callback"
-        )(this.listHeight);
-      }
-    };
-    if (
-      (this.readyState & STATUS_MASKS.SETUP_COMPLETE) ===
-      STATUS_MASKS.SETUP_COMPLETE
-    ) {
-      callback();
-    } else {
-      this.scheduleCallback("SETUP_COMPLETE", callback, "UPDATE_LIST_HEIGHT");
-    }
-  };
-
-  private collectRecodsAndRunCallback = () => {
-    const result: VisibleRecord[] = [];
-    const recordsCallback = this.getVisibleRecordsCallback(
-      "collectRecodsAndRunCallback"
-    );
-
-    this.getCurrentVisibleIndexRange("collectRecodsAndRunCallback").forEach(
-      (index) => {
-        result.push(
-          this.getVisibleRecordByIndex(index, "collectRecodsAndRunCallback")
-        );
-      }
-    );
-    recordsCallback(result);
-  };
-
-  private createIndexRange = (startIndex: number, endIndex: number) => {
-    const result = [];
-    for (let i = startIndex; i <= endIndex; i++) {
-      result.push(i);
-    }
-    return result;
+    return gapHeight + estimatedElementsHeight + this.elementHeightsLedger.sum;
   };
 
   private findFirstIndexInViewportByScroll = () => {
@@ -656,13 +696,18 @@ export class Virtualizer {
 
         attempts++;
 
-        const offsetRecordElement = this.getVisibleRecordByIndex(
+        const offsetRecordElement = this.getRecordByIndex(
           estimatedFirstInViewportIndex,
           "findFirstIndexInViewportByScroll"
         );
 
         const deltaScrollOffset =
           this.scrollTopWithOffset - offsetRecordElement.offset;
+
+        if (deltaScrollOffset === 0) {
+          // spot on - the elemet is at the top
+          break;
+        }
 
         // scrolled past the element
         if (deltaScrollOffset > 0) {
@@ -688,18 +733,18 @@ export class Virtualizer {
             );
             estimatedFirstInViewportIndex -= dOffsetIndex;
           } else {
-            // partially in view - rare occasion when the previous element is olmost 100% out of viewport
+            // previous element is partially in view so it should be the anchor
+            estimatedFirstInViewportIndex -= 1;
             break;
           }
         }
       }
     }
-
     return estimatedFirstInViewportIndex;
   };
 
   private findLastIndexInViewportByScroll = (firstInviewportIndex: number) => {
-    const firstElement = this.getVisibleRecordByIndex(
+    const firstElement = this.getRecordByIndex(
       firstInviewportIndex,
       "findLastIndexInViewportByScroll"
     );
@@ -715,94 +760,90 @@ export class Virtualizer {
       return firstInviewportIndex;
     }
 
-    return Math.min(
-      Math.trunc(remainingSpace / this.estimatedSize) +
-        1 +
-        firstInviewportIndex,
-      this.totalElementsCount - 1
+    return (
+      Math.trunc(remainingSpace / this.estimatedSize) + 1 + firstInviewportIndex
     );
   };
 
-  private updateOffsetForIndex = (index: number) => {
-    if (index === 0) {
-      return;
-    }
-
-    const currentElementOffsetRec = this.getOffsetRecordByIndex(
-      index,
-      "updateOffsetForIndex"
-    );
-
-    const prevElementOffsetRec = this.getOffsetRecordByIndex(
-      index - 1,
-      "updateOffsetForIndex"
-    );
-
-    const prevHeight =
-      this.getHeights("updateOffsetForIndex").get(index)?.height ??
-      this.estimatedSize;
-
-    currentElementOffsetRec.offset =
-      prevElementOffsetRec.offset + prevHeight + this.gap;
-  };
-
-  private updateHeightForIndex = (index: number, height: number) => {
-    const heightsMap = this.getHeights("updateHeightForIndex");
-    const heightRecord = heightsMap.get(index);
-
-    if (heightRecord) {
-      if (heightRecord.height !== height) {
-        // update the elements height sum with the new value
-        this.heights.sum = this.heights.sum - heightRecord.height + height;
-        heightRecord.height = height;
+  private updateListHeightAndRunCallback = () => {
+    const callback = () => {
+      const newListHeight = this.getRelevantListHeight();
+      if (newListHeight !== this.listHeight) {
+        this.listHeight = newListHeight;
+        this.getListHeightCallback(
+          "updateListHeightAndRunCallback -> callback"
+        )(this.listHeight);
       }
+    };
+    if (
+      (this.readyState & STATUS_MASKS.SETUP_COMPLETE) ===
+      STATUS_MASKS.SETUP_COMPLETE
+    ) {
+      callback();
     } else {
-      // create the hight record and update the height sum only if height arg differs from estimatedSize
-      if (this.estimatedSize !== height) {
-        heightsMap.set(index, { index, height });
-        this.heights.sum = this.heights.sum + height;
-      }
+      this.scheduleCallback("SETUP_COMPLETE", callback, "UPDATE_LIST_HEIGHT");
     }
   };
 
-  private updateVisibleIndexes = () => {
-    const currentVisibleIndexRange = this.getCurrentVisibleIndexRange(
-      "updateVisibleIndexes"
-    );
-    const anchorIndex = this.findFirstIndexInViewportByScroll();
-    const firstIndexWithOverscan = Math.max(0, anchorIndex - this.overscan);
-    const lastOnScreenIndex = this.findLastIndexInViewportByScroll(anchorIndex);
-    const lastIndexWithOverscan = Math.min(
-      Math.max(0, this.totalElementsCount - 1),
-      lastOnScreenIndex + this.overscan
+  private collectRecodsAndRunCallback = () => {
+    const result: VisibleRecord[] = [];
+    const recordsCallback = this.getVisibleRecordsCallback(
+      "collectRecodsAndRunCallback"
     );
 
-    // console.log("anchorIndex", anchorIndex);
-    // console.log("firstIndexWithOverscan", firstIndexWithOverscan);
-    // console.log("lastOnScreenIndex", lastOnScreenIndex);
-    // console.log("lastIndexWithOverscan", lastIndexWithOverscan);
-
-    this.writeRecordsForIndexRange(
-      firstIndexWithOverscan,
-      lastIndexWithOverscan
+    const prevAnchorOffset = this.getOffsetForIndex(
+      this.prevAnchorIndex,
+      "collectRecodsAndRunCallback"
     );
 
-    const newRange = this.createIndexRange(
-      firstIndexWithOverscan,
-      lastIndexWithOverscan
+    this.getCurrentVisibleIndexRange("collectRecodsAndRunCallback").forEach(
+      (index) => {
+        result.push(
+          this.getRecordByIndex(index, "collectRecodsAndRunCallback")
+        );
+      }
     );
 
-    const newRangeSet = new Set(newRange);
-    if (newRangeSet.difference(currentVisibleIndexRange).size) {
-      currentVisibleIndexRange.clear();
-      this.currentVisibleIndexRange = newRangeSet;
-      return true;
-    } else {
-      // clear on the spot
-      newRangeSet.clear();
-      newRange.length = 0;
-      return false;
+    if (this.anchorIndex < this.prevAnchorIndex) {
+      const currentScrollTop = this.getScrollContainerElement(
+        "collectRecodsAndRunCallback"
+      ).scrollTop;
+      const recalcPrevAnchorOfffset = this.getOffsetForIndex(
+        this.prevAnchorIndex,
+        "collectRecodsAndRunCallback"
+      );
+
+      const newScrollTop =
+        currentScrollTop + recalcPrevAnchorOfffset - prevAnchorOffset;
+
+      this.getScrollContainerElement("collectRecodsAndRunCallback").scrollTop =
+        newScrollTop;
     }
+
+    recordsCallback(result);
+  };
+
+  // END OF LIST HEIGHT AND ELEMENTS OPERATIONS
+
+  // UTILS
+
+  private batchOnMeasureCallbacks = () => {
+    if (this.onMeasureCallbackScheduled === false) {
+      this.onMeasureCallbackScheduled = true;
+      queueMicrotask(() => {
+        this.onMeasureCallbackScheduled = false;
+        this.updateListHeightAndRunCallback();
+        this.collectRecodsAndRunCallback();
+      });
+    }
+  };
+
+  private createIndexRange = (startIndex: number, endIndex: number) => {
+    const result = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+      result.push(i);
+    }
+    return result;
   };
 
   private writeRecordsForIndexRange = (
@@ -821,19 +862,11 @@ export class Virtualizer {
     }
 
     for (let i = startIndex; i <= endIndex; i++) {
-      this.getVisibleRecordByIndex(i, "writeRecordsForIndexRange");
+      this.getRecordByIndex(i, "writeRecordsForIndexRange");
     }
   };
 
-  private batchOnMeasureCallbacks = (callback: () => void) => {
-    if (this.batchOnMeasureCallbacksId !== null) {
-      clearTimeout(this.batchOnMeasureCallbacksId);
-    }
-    this.batchOnMeasureCallbacksId = setTimeout(() => {
-      callback();
-      this.batchOnMeasureCallbacksId = null;
-    }, 0);
-  };
+  // END OF UTILS
 
   // USER-FACING METHODS
 
@@ -855,11 +888,11 @@ export class Virtualizer {
       recordsCallback: null,
     });
 
-    this.offsets.records?.clear();
-    this.offsets.records = null;
-    this.heights.sum = 0;
-    this.heights.records?.clear();
-    this.heights.records = null;
+    this.records?.clear();
+    this.records = null;
+    this.elementHeightsLedger.sum = 0;
+    this.elementHeightsLedger.records?.clear();
+    this.elementHeightsLedger.records = null;
     this.currentVisibleIndexRange?.clear();
     this.currentVisibleIndexRange = null;
 
@@ -924,7 +957,7 @@ export class Virtualizer {
       requestAnimationFrame(() => {
         const callChain = "scrollToIndex -> callback";
 
-        const element = this.getOffsetRecordByIndex(index, callChain);
+        const element = this.getRecordByIndex(index, callChain);
         const scrollTo = this.listElementOffsetTop + element.offset;
 
         console.log(callChain, scrollTo, index);
@@ -956,21 +989,13 @@ export class Virtualizer {
       );
     }
 
-    const heightsMap = this.getHeights("measureElement");
-    const heightRecord = heightsMap.get(elemKey);
-
     const refHeight = element.offsetHeight;
 
-    if (
-      (heightRecord && heightRecord.height !== refHeight) ||
-      (!heightRecord && this.estimatedSize !== refHeight)
-    ) {
-      this.updateHeightForIndex(elemKey, refHeight);
+    const updated = this.updateHeightForIndex(elemKey, refHeight);
+
+    if (updated) {
       this.updateOffsetForIndex(elemKey + 1);
-      this.batchOnMeasureCallbacks(() => {
-        this.calculateListHeightAndRunCallback();
-        this.collectRecodsAndRunCallback();
-      });
+      this.batchOnMeasureCallbacks();
     }
   };
 }
