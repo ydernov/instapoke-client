@@ -1,18 +1,9 @@
 import { getPokemon } from "@/api";
 import { feedCounterAtom } from "@/components/control-panel";
-import { useIntersectionObserver } from "@/hooks/useIntersectionObserver";
 import { useVirtualization } from "@/hooks/useVirtualization";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type FC,
-} from "react";
+import { memo, useEffect, useMemo, useRef, useState, type FC } from "react";
 import { FeedItemHOC } from "./feed-item/feed-item-hoc";
 import { LoadingIndicator } from "./loading-indicator";
 
@@ -93,61 +84,6 @@ const FeedList: FC<FeedListProps> = ({
     },
   });
 
-  const { unobserve, observe } = useIntersectionObserver();
-
-  const handleLoadPrev = useCallback(
-    (entry: IntersectionObserverEntry) => {
-      if (
-        hasPreviousPage &&
-        !isFetchingPreviousPage &&
-        !isFetchingNextPage &&
-        entry.isIntersecting
-      ) {
-        void fetchPreviousPage();
-      }
-    },
-    [
-      fetchPreviousPage,
-      hasPreviousPage,
-      isFetchingNextPage,
-      isFetchingPreviousPage,
-    ]
-  );
-
-  const handleLoadNext = useCallback(
-    (entry: IntersectionObserverEntry) => {
-      if (
-        hasNextPage &&
-        !isFetchingPreviousPage &&
-        !isFetchingNextPage &&
-        entry.isIntersecting
-      ) {
-        void fetchNextPage();
-      }
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage, isFetchingPreviousPage]
-  );
-
-  const prevLoadTrigger = useCallback(
-    (el: HTMLDivElement) => {
-      observe(el, handleLoadPrev);
-      return () => {
-        unobserve(el);
-      };
-    },
-    [handleLoadPrev, observe, unobserve]
-  );
-
-  const nextLoadTrigger = useCallback(
-    (el: HTMLDivElement) => {
-      observe(el, handleLoadNext);
-      return () => {
-        unobserve(el);
-      };
-    },
-    [handleLoadNext, observe, unobserve]
-  );
-
   const pokemonArray = useMemo(() => {
     return pokemonFeed?.pages.flatMap((page) => page.pokemon);
   }, [pokemonFeed]);
@@ -197,14 +133,12 @@ const FeedList: FC<FeedListProps> = ({
     records,
   ]);
 
-  useEffect(() => {
-    scrollToIndex(offset);
-  }, [scrollToIndex]);
+  // useEffect(() => {
+  //   scrollToIndex(offset);
+  // }, [scrollToIndex]);
 
   return (
     <div className="grid auto-rows-max gap-6 h-full scroll-auto">
-      <div className="prevLoadTrigger h-px" ref={prevLoadTrigger} />
-      {isFetchingPreviousPage ? <LoadingIndicator /> : null}
       <div
         className="relative h-(--list-height)"
         ref={listRef}
@@ -214,7 +148,7 @@ const FeedList: FC<FeedListProps> = ({
           records.map((record) => {
             const pokemon = pokemonArray[record.index];
 
-            return (
+            return pokemon ? (
               <div
                 ref={measureElement}
                 data-index={record.index}
@@ -234,7 +168,7 @@ const FeedList: FC<FeedListProps> = ({
                   moves={pokemon.moves}
                 />
               </div>
-            );
+            ) : null;
           })
         ) : (
           <div className="bg-white p-6 rounded-xl shadow-lg text-center text-gray-500">
@@ -244,7 +178,6 @@ const FeedList: FC<FeedListProps> = ({
       </div>
 
       {isFetchingNextPage ? <LoadingIndicator /> : null}
-      <div className="nextLoadTrigger h-px" ref={nextLoadTrigger} />
     </div>
   );
 };

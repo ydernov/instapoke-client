@@ -12,6 +12,7 @@ import missingImg from "./missing_image.webp";
 import { TagLinksSectionHOC } from "./tag-links-hoc";
 
 const FeedItem: React.FC<Pokemon> = ({
+  id,
   name,
   imageURL,
   smallImageURL,
@@ -60,7 +61,9 @@ const FeedItem: React.FC<Pokemon> = ({
       />
 
       <div className="flex flex-col justify-between aspect-square overflow-hidden min-h-full">
-        <h3 className="text-xl font-bold text-gray-800 mb-2">{name}</h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-2">
+          {name} #{id}
+        </h3>
 
         <TagLinksSectionHOC tagType="types" tags={types} title="Types:" />
 

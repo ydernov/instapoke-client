@@ -92,7 +92,7 @@ const FeedList: FC<FeedListProps> = ({
   const rowVirtualizer = useVirtualizer({
     count: rows.length + (hasNextPage ? 1 : 0),
     getScrollElement: () => scrollContainer,
-    estimateSize: () => 575,
+    estimateSize: () => 525,
     overscan: 5,
     gap: 24,
     getItemKey: (index) => {
@@ -111,7 +111,6 @@ const FeedList: FC<FeedListProps> = ({
     if (!virtualItems.length) return;
 
     const lastItem = virtualItems[virtualItems.length - 1];
-    const firstItem = virtualItems[0];
 
     if (
       lastItem.index >= rows.length - 1 &&
@@ -131,7 +130,6 @@ const FeedList: FC<FeedListProps> = ({
 
   return (
     <div className="grid auto-rows-max gap-6 h-full scroll-auto">
-      {isFetchingPreviousPage ? <LoadingIndicator /> : null}
       <div
         className="relative h-(--list-height)"
         ref={listRef}
@@ -151,7 +149,7 @@ const FeedList: FC<FeedListProps> = ({
               style={{
                 translate: `0 ${virtualRow.start}px`,
               }}
-              ref={rowVirtualizer.measureElement}
+              // ref={rowVirtualizer.measureElement}
             >
               {isLoaderRowBottom ? (
                 <LoadingIndicator />
