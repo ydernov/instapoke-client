@@ -99,6 +99,7 @@ export class Virtualizer {
   private scheduledCallbacks: ScheduledCallbacksType | null;
   private onMeasureCallbackScheduled: boolean = false;
   private toInteractiveRAFId: null | number = null;
+  private scrollContainerResizeObserver: ResizeObserver | null;
   // END OF INTERNAL STRUCTURES
   //
   // VARIABLES
@@ -127,6 +128,10 @@ export class Virtualizer {
       ["SETUP_COMPLETE", new Map()],
       ["FULLY_OPERATIONAL", new Map()],
     ]);
+
+    this.scrollContainerResizeObserver = new ResizeObserver(
+      this.resizeCallback
+    );
   }
 
   // GETTERS
@@ -265,6 +270,15 @@ export class Virtualizer {
     return (this.estimatedSize + this.gap) * index;
   };
 
+  private getResizeObserver = (calledFrom: string) => {
+    if (!this.scrollContainerResizeObserver) {
+      throw new Error(
+        `${calledFrom} -> getResizeObserver: scrollContainerResizeObserver is not defined`
+      );
+    }
+    return this.scrollContainerResizeObserver;
+  };
+
   // END OF GETTERS
 
   // INTERNAL UPDATERS
@@ -375,6 +389,7 @@ export class Virtualizer {
     }
     this.removeScrollListener();
     this.scrollContainer = scrollContainer;
+    this.getResizeObserver("updateScrollContainer").disconnect();
 
     if (scrollContainer === null) {
       this.scrollContainerHeight = 0;
@@ -382,10 +397,11 @@ export class Virtualizer {
       return;
     }
     this.updateListElementOffset();
-    this.scrollContainerHeight = this.getScrollContainerElement(
-      "updateScrollContainer"
-    ).offsetHeight;
     this.addScrollListener();
+    this.getResizeObserver("updateScrollContainer").observe(
+      this.getScrollContainerElement("updateScrollContainer")
+    );
+
     this.updateInstanceState("SCROLL_CONTAINER_SET", "ready");
   };
 
@@ -520,7 +536,7 @@ export class Virtualizer {
 
   // END OF SCHEDULING
 
-  // SCROLL AND HANDLING
+  // SCROLL AND OTHER HANDLING
   private scrollHandler = () => {
     this.scrollTop = this.getScrollContainerElement("scrollHandler").scrollTop;
     this.scrollTopWithOffset = this.scrollTop - this.listElementOffsetTop;
@@ -551,7 +567,17 @@ export class Virtualizer {
       this.scrollController = null;
     }
   };
-  // END OF SCROLL AND HANDLING
+
+  private resizeCallback: ResizeObserverCallback = (entries) => {
+    entries.forEach((entry) => {
+      this.scrollContainerHeight = entry.contentRect.height;
+      this.updateListElementOffset();
+
+      this.scrollHandler();
+    });
+  };
+
+  // END OF SCROLL AND OTHER HANDLING
 
   // RECORD UPDATERS
 
@@ -716,6 +742,9 @@ export class Virtualizer {
             const dOffsetIndex = Math.trunc(
               deltaScrollOffset / (this.estimatedSize + this.gap)
             );
+            if (dOffsetIndex === 0) {
+              break;
+            }
             estimatedFirstInViewportIndex += dOffsetIndex;
           } else {
             // if partially in view - we've found the index - do nothing
@@ -731,6 +760,9 @@ export class Virtualizer {
             const dOffsetIndex = Math.trunc(
               Math.abs(deltaScrollOffset) / (this.estimatedSize + this.gap)
             );
+            if (dOffsetIndex === 0) {
+              break;
+            }
             estimatedFirstInViewportIndex -= dOffsetIndex;
           } else {
             // previous element is partially in view so it should be the anchor
@@ -756,7 +788,7 @@ export class Virtualizer {
       this.gap +
       this.scrollContainerHeight;
 
-    if (remainingSpace < 0) {
+    if (remainingSpace <= 0) {
       return firstInviewportIndex;
     }
 
@@ -902,6 +934,9 @@ export class Virtualizer {
     this.scheduledCallbacks?.clear();
     this.scheduledCallbacks = null;
 
+    this.scrollContainerResizeObserver?.disconnect();
+    this.scrollContainerResizeObserver = null;
+
     this.isDestroyed = true;
   };
 
@@ -946,6 +981,12 @@ export class Virtualizer {
     }
   };
 
+  /**
+   * @note This function is currently a work in progress (WIP) and not ready for production use.
+   * Currently has inconsistent behavior especially whenskipping elements and then creating them on scroll up
+   *
+   * @param index - An index to scroll to, can be existing or non-existant
+   */
   scrollToIndex = (index: number) => {
     if (this.isDestroyed) {
       throw new Error(
@@ -960,8 +1001,12 @@ export class Virtualizer {
         const element = this.getRecordByIndex(index, callChain);
         const scrollTo = this.listElementOffsetTop + element.offset;
 
-        console.log(callChain, scrollTo, index);
-        this.getScrollContainerElement(callChain).scrollTo({ top: scrollTo });
+        this.bottomMostExistingElementIndex = index;
+
+        this.getListContainerElement(callChain).style.height =
+          element.offset + element.height + "px";
+
+        this.getScrollContainerElement(callChain).scrollTop = scrollTo;
       });
     };
     if (
