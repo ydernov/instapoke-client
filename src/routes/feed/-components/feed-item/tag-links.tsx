@@ -45,8 +45,11 @@ const TagLinksSection: React.FC<TagLinksSectionProps> = ({
       {tags.map((tag) => (
         <Link
           to="/feed"
-          search={{
-            [tagType]: [tag],
+          search={(search) => {
+            return {
+              ...search,
+              [tagType]: [tag],
+            };
           }}
           key={tag}
           className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${tagClassName}`}

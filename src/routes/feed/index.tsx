@@ -67,7 +67,7 @@ function Feed() {
 
       <div className="flex flex-col md:flex-row gap-6">
         <aside className="md:w-1/4 bg-white p-6 rounded-xl shadow-lg border border-gray-200 sticky top-0 h-full">
-          <FeedFilters />
+          <FeedFilters types={types} moves={moves} abilities={abilities} />
         </aside>
 
         <main className="md:w-3/4 flex-grow">
