@@ -44,7 +44,9 @@ const FeedList: FC<FeedListProps> = ({
     isFetchingPreviousPage,
     isFetchingNextPage,
     hasNextPage,
+    hasPreviousPage,
     fetchNextPage,
+    fetchPreviousPage,
   } = useInfiniteQuery({
     queryKey: ["pokemonFeed", types, moves, abilities],
     queryFn: ({ pageParam: { offset: ofs, limit: lim } }) =>
@@ -110,12 +112,23 @@ const FeedList: FC<FeedListProps> = ({
     const virtualItems = rowVirtualizer.getVirtualItems();
     if (!virtualItems.length) return;
 
+    const firstItem = virtualItems[0];
     const lastItem = virtualItems[virtualItems.length - 1];
+
+    if (
+      firstItem.index === 0 &&
+      hasPreviousPage &&
+      !isFetchingPreviousPage &&
+      !isFetchingNextPage
+    ) {
+      void fetchPreviousPage();
+    }
 
     if (
       lastItem.index >= rows.length - 1 &&
       hasNextPage &&
-      !isFetchingNextPage
+      !isFetchingNextPage &&
+      !isFetchingPreviousPage
     ) {
       void fetchNextPage();
     }
@@ -126,7 +139,13 @@ const FeedList: FC<FeedListProps> = ({
     fetchNextPage,
     isFetchingPreviousPage,
     rows.length,
+    hasPreviousPage,
+    fetchPreviousPage,
   ]);
+
+  // useEffect(() => {
+  //   rowVirtualizer.scrollToIndex(offset);
+  // }, []);
 
   return (
     <div className="grid auto-rows-max gap-6 h-full scroll-auto">
