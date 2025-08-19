@@ -80,10 +80,15 @@ export const useVirtualization = ({
     virtualizer.current?.scrollToIndex(index);
   }, []);
 
+  const restoreScrollForPrepend = useCallback((appednedCount: number) => {
+    virtualizer.current?.restoreScrollForPrepend(appednedCount);
+  }, []);
+
   return {
     listHeight,
     records,
     measureElement,
     scrollToIndex,
+    restoreScrollForPrepend,
   };
 };

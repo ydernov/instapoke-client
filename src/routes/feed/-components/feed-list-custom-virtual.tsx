@@ -89,15 +89,20 @@ const FeedList: FC<FeedListProps> = ({
   }, [pokemonFeed]);
 
   const listRef = useRef(null);
-  const { measureElement, records, listHeight, scrollToIndex } =
-    useVirtualization({
-      totalElementsCount: pokemonArray?.length || 0,
-      scrollContainer: document,
-      listContainerElement: listRef.current,
-      estimatedSize: 525,
-      overscan: 5,
-      gap: 24,
-    });
+  const {
+    measureElement,
+    records,
+    listHeight,
+    scrollToIndex,
+    restoreScrollForPrepend,
+  } = useVirtualization({
+    totalElementsCount: pokemonArray?.length || 0,
+    scrollContainer: document,
+    listContainerElement: listRef.current,
+    estimatedSize: 525,
+    overscan: 5,
+    gap: 24,
+  });
 
   useEffect(() => {
     if (records.length && pokemonArray?.length) {
@@ -110,7 +115,12 @@ const FeedList: FC<FeedListProps> = ({
         !isFetchingPreviousPage &&
         !isFetchingNextPage
       ) {
-        void fetchPreviousPage();
+        void fetchPreviousPage().then(({ data }) => {
+          const count = data?.pages[0].pokemon.length;
+          if (count !== undefined) {
+            restoreScrollForPrepend(count);
+          }
+        });
       }
 
       if (

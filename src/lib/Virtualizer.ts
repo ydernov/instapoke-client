@@ -65,6 +65,7 @@ type ScheduledCallbacksSpecialKays =
   | "UPDATE_LIST_OFFSET"
   | "UPDATE_LIST_HEIGHT"
   | "UPDATE_VISIBLE_RECORDS";
+
 type ScheduledCallbacksType = Map<
   ScheduledCallbacksStages,
   Map<symbol | ScheduledCallbacksSpecialKays, () => void>
@@ -130,7 +131,7 @@ export class Virtualizer {
     ]);
 
     this.scrollContainerResizeObserver = new ResizeObserver(
-      this.resizeCallback
+      this.scrollContainerResizeCallback
     );
   }
 
@@ -270,10 +271,10 @@ export class Virtualizer {
     return (this.estimatedSize + this.gap) * index;
   };
 
-  private getResizeObserver = (calledFrom: string) => {
+  private getScrollContainerResizeObserver = (calledFrom: string) => {
     if (!this.scrollContainerResizeObserver) {
       throw new Error(
-        `${calledFrom} -> getResizeObserver: scrollContainerResizeObserver is not defined`
+        `${calledFrom} -> getScrollContainerResizeObserver: scrollContainerResizeObserver is not defined`
       );
     }
     return this.scrollContainerResizeObserver;
@@ -389,7 +390,7 @@ export class Virtualizer {
     }
     this.removeScrollListener();
     this.scrollContainer = scrollContainer;
-    this.getResizeObserver("updateScrollContainer").disconnect();
+    this.getScrollContainerResizeObserver("updateScrollContainer").disconnect();
 
     if (scrollContainer === null) {
       this.scrollContainerHeight = 0;
@@ -398,7 +399,7 @@ export class Virtualizer {
     }
     this.updateListElementOffset();
     this.addScrollListener();
-    this.getResizeObserver("updateScrollContainer").observe(
+    this.getScrollContainerResizeObserver("updateScrollContainer").observe(
       this.getScrollContainerElement("updateScrollContainer")
     );
 
@@ -568,7 +569,7 @@ export class Virtualizer {
     }
   };
 
-  private resizeCallback: ResizeObserverCallback = (entries) => {
+  private scrollContainerResizeCallback: ResizeObserverCallback = (entries) => {
     entries.forEach((entry) => {
       this.scrollContainerHeight = entry.contentRect.height;
       this.updateListElementOffset();
@@ -621,7 +622,7 @@ export class Virtualizer {
     return false;
   };
 
-  private updateButtomMostElementIndex = (newIndex: number) => {
+  private updateBottomMostElementIndex = (newIndex: number) => {
     if (newIndex > this.totalElementsCount - 1) {
       this.bottomMostExistingElementIndex = this.totalElementsCount - 1;
     } else if (newIndex > this.bottomMostExistingElementIndex) {
@@ -639,7 +640,7 @@ export class Virtualizer {
     const lastOnScreenIndex = this.findLastIndexInViewportByScroll(anchorIndex);
     const lastIndexWithOverscan = lastOnScreenIndex + this.overscan;
 
-    this.updateButtomMostElementIndex(lastIndexWithOverscan);
+    this.updateBottomMostElementIndex(lastIndexWithOverscan);
 
     this.prevAnchorIndex = this.anchorIndex;
     this.anchorIndex = anchorIndex;
@@ -688,7 +689,7 @@ export class Virtualizer {
     return this.calculateListHeight();
   };
 
-  private calculateListHeight = () => {
+  private calculateListHeight = (elemCount = this.totalElementsCount) => {
     const heightRecords = this.getHeightRecords("calculateListHeight");
     if (this.elementHeightsLedger.changed) {
       let recalculatedElementsHeight = 0;
@@ -699,9 +700,9 @@ export class Virtualizer {
       this.elementHeightsLedger.changed = false;
     }
 
-    const gapHeight = this.gap * Math.max(0, this.totalElementsCount - 1);
+    const gapHeight = this.gap * Math.max(0, elemCount - 1);
     const estimatedElementsHeight =
-      (this.totalElementsCount - heightRecords.size) * this.estimatedSize;
+      (elemCount - heightRecords.size) * this.estimatedSize;
 
     return gapHeight + estimatedElementsHeight + this.elementHeightsLedger.sum;
   };
@@ -1042,5 +1043,21 @@ export class Virtualizer {
       this.updateOffsetForIndex(elemKey + 1);
       this.batchOnMeasureCallbacks();
     }
+  };
+
+  restoreScrollForPrepend = (prependedCount: number) => {
+    this.updateBottomMostElementIndex(
+      this.bottomMostExistingElementIndex + prependedCount
+    );
+
+    const deltaOffset = prependedCount * (this.estimatedSize + this.gap);
+
+    this.getListContainerElement("restoreScrollForPrepend").style.height =
+      this.calculateListHeight(this.totalElementsCount + prependedCount) + "px";
+
+    this.getScrollContainerElement("restoreScrollForPrepend").scrollTop +=
+      deltaOffset;
+
+    this.scrollHandler();
   };
 }
